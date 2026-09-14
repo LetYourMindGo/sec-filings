@@ -204,3 +204,7 @@ your own README from the top, and confirm bun install, bun test and bun dev all
 work. The clone won't have .env, so the README's setup step is the thing under
 test. Report what you had to do that the README didn't tell you, then fix it.
 Delete the temp clone afterwards.
+
+## 2026-09-14 22:25 UTC
+
+yes, fix the hook path
