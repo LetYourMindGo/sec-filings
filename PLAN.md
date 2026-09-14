@@ -198,7 +198,8 @@ same declaration, including coercing numeric query strings.
       results under the same 1 h TTL, so paging through JPMorgan doesn't re-parse 4.6 MB per request.
       The built ticker `Map` is kept in memory the same way (24 h). No eviction; add the unbounded-map
       limitation to `NOTES.md`
-- [x] CORS for the Vite dev origin
+- [x] ~~CORS for the Vite dev origin~~ Replaced by a Vite dev proxy for `/companies` and `/filings`
+      (Phase 4 follow-up). CORS pinned to :5173 broke every request when Vite fell back to another port
 - [x] Error envelope: `{ error: { code, message } }`
 - [x] `@elysiajs/swagger` for a browsable API surface
 - [x] Verify both endpoints with `curl` before starting the frontend. Also checked end to end: a bad
@@ -292,6 +293,7 @@ Pure functions against saved fixtures. No network access in tests. `bun test`.
 | Form name variants (`SC 13G` vs `SCHEDULE 13G`) | Kept as separate forms in filters and counts | EDGAR's form string is the form type. A hand-rolled alias table would silently merge distinct forms |
 | `BRK.B` vs EDGAR's `BRK-B` | Exact match first, then retry with dots replaced by dashes | Most sources write share classes with a dot. The exact match comes first because one EDGAR ticker contains a literal dot (`NONE.`) |
 | Unknown ticker | 404 with a message | An empty list is indistinguishable from a company that has filed nothing |
+| Browser → API in development | Vite dev proxy for `/companies` and `/filings`; no CORS | Requests are same-origin on whatever port Vite picks. CORS pinned to one origin broke the app when 5173 was taken |
 | Cache backing | SQLite via `bun:sqlite` | Small, dependency-free, and survives restarts |
 | Full history backfill | No — 12-month window fetched on demand | An ingestion pipeline is out of scope for the time budget |
 | Read `filings.files` chunks? | No — `recent` only, with a `truncated` flag | Phase 0 showed `recent` always covers 12 months (JPMorgan: 26,143 rows); the chunk walk would add ~60 min and a second fetch path for no observed benefit |

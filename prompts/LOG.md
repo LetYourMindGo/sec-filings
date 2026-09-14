@@ -124,3 +124,53 @@ message from the error envelope, not a blank screen.
 
 No chart. Verify both views in the browser yourself, then commit. Stop there
 and tell me what's left — don't start Phase 5 or 6.
+
+## 2026-09-14 22:19 UTC
+
+1. Remove the fixed-port CORS coupling.
+
+Vite picks another port when 5173 is taken (I saw it land on 5174), and then
+every API call is blocked because cors() is pinned to 5173. A reviewer with
+anything on 5173 gets a blank app with no useful error.
+
+- Add a dev proxy in web/vite.config.ts for /companies and /filings pointing at
+  http://localhost:3000, so the frontend's requests are same-origin whatever
+  port Vite chooses.
+- API_BASE in api.ts becomes '' — leave the fetch paths as they are.
+- Then delete the cors() plugin and drop @elysiajs/cors from
+  server/package.json. With the proxy it's dead configuration: browser requests
+  are same-origin, Swagger is served from :3000 to itself, and curl doesn't
+  enforce CORS. Per CLAUDE.md, config that isn't load-bearing goes.
+- Verify by starting Vite while 5173 is already occupied: both views must work
+  on the fallback port.
+
+2. Write README.md.
+
+Audience is a reviewer who has just cloned the repo and wants it running in two
+minutes, then wants to understand what they're looking at. Keep to the prose
+rules in CLAUDE.md.
+
+Cover, in this order:
+- One paragraph: what it is, and that data comes from SEC EDGAR at request time
+  with no database.
+- Requirements: Bun (state the version you're on), nothing else.
+- Setup: bun install, then copy .env.example to .env and set
+  EDGAR_USER_AGENT to the reader's own name and email. Say plainly that SEC
+  returns 403 without it and that the repo can't ship a working value.
+- Run: bun dev (both), and note the API port and that Vite may choose a
+  different port.
+- Test: bun test, and that tests use saved fixtures and never hit the network.
+- The two endpoints, each with a curl example that actually works — use
+  ?form=10-K&limit=3 for AAPL and ?tickers=AAPL,SPOT,JPM for the summary — plus
+  a one-line description of every query parameter and its default.
+- Swagger URL.
+- Project layout: a short tree with one line per directory saying what lives
+  there.
+- Pointers to PLAN.md for the plan and recon findings, and NOTES.md for
+  decisions and limitations. Don't duplicate their content.
+
+Then verify it: clone the repo into a temp directory outside this one, follow
+your own README from the top, and confirm bun install, bun test and bun dev all
+work. The clone won't have .env, so the README's setup step is the thing under
+test. Report what you had to do that the README didn't tell you, then fix it.
+Delete the temp clone afterwards.

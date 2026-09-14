@@ -1,6 +1,7 @@
 import type { FilingsResponse, SummaryResponse } from 'shared'
 
-export const API_BASE = 'http://localhost:3000'
+// Empty: the Vite dev server proxies /companies and /filings to the API (web/vite.config.ts).
+export const API_BASE = ''
 export const PAGE_SIZE = 50
 
 export type Sort = 'filingDate' | '-filingDate'
@@ -36,12 +37,13 @@ async function getJson<T>(path: string): Promise<T> {
   try {
     response = await fetch(`${API_BASE}${path}`)
   } catch {
-    throw new ApiError(`Could not reach the API at ${API_BASE}. Is the server running?`)
+    throw new ApiError('Could not reach the dev server. Is bun dev running?')
   }
 
   const body = await response.json().catch(() => null)
   if (!response.ok) {
-    throw new ApiError(body?.error?.message ?? `The API answered ${response.status}`)
+    // No envelope means the answer came from the Vite proxy, which sends an empty 502 when the API is down.
+    throw new ApiError(body?.error?.message ?? `No response from the API (${response.status}). Is it running on port 3000?`)
   }
   return body as T
 }

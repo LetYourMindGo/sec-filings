@@ -1,4 +1,3 @@
-import { cors } from '@elysiajs/cors'
 import { swagger } from '@elysiajs/swagger'
 import { Elysia, t } from 'elysia'
 import type { Company } from 'shared'
@@ -20,7 +19,6 @@ function errorBody(code: string, message: string) {
 }
 
 const app = new Elysia()
-  .use(cors({ origin: 'http://localhost:5173' }))
   .use(swagger())
   .onError(({ code, error, set }) => {
     if (error instanceof EdgarError) {
