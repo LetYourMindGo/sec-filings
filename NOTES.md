@@ -13,3 +13,6 @@ Decisions, limitations and next steps. `PLAN.md` has the full plan; this file is
   reports as `20-F`, which this summary doesn't count as a 10-K.
 - An unfiltered filings list for a heavy filer is mostly noise: 87% of JPMorgan's filings in the last
   year are `424B2` prospectuses.
+- Expired cache entries are not used as a fallback. If EDGAR is unreachable after an entry's TTL,
+  the request fails even though the old body is still in SQLite. This is deliberate: serving stale
+  data would need a staleness indicator in every response, which isn't worth it at this scope.

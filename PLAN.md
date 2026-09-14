@@ -181,7 +181,11 @@ same declaration, including coercing numeric query strings.
 
 ### Plumbing
 
-- [ ] `index.ts` asserts `EDGAR_USER_AGENT` at startup and exits with a message if it's unset;
+- [x] Check response bodies before caching: `fetchJson(url, ttl, isValid)` with predicates next to
+      the Raw types in `normalize.ts`, asserting only what the normalizer needs. A body that fails
+      (fresh or cached) deletes its row and throws `EdgarError` with the URL and the first 100 chars.
+      Routes map it to 502 with a generic message
+- [x] `index.ts` asserts `EDGAR_USER_AGENT` at startup and exits with a message if it's unset;
       `client.ts` only reads it. Pure modules (`normalize`, `tickers`, `urls`, `service/*`) must not
       import `client.ts`, so `bun test` runs on a fresh clone with no `.env`
 - [ ] Second cache layer: SQLite keeps raw bodies; an in-memory `Map<cik, Filing[]>` holds normalized

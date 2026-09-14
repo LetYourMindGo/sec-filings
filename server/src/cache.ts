@@ -8,6 +8,7 @@ const select = db.query<{ body: string; fetched_at: number }, [string]>(
   'SELECT body, fetched_at FROM cache WHERE key = ?',
 )
 const upsert = db.query('INSERT OR REPLACE INTO cache (key, body, fetched_at) VALUES (?, ?, ?)')
+const remove = db.query('DELETE FROM cache WHERE key = ?')
 
 export function getCached(key: string, maxAgeMs: number): string | null {
   const row = select.get(key)
@@ -16,4 +17,8 @@ export function getCached(key: string, maxAgeMs: number): string | null {
 
 export function setCached(key: string, body: string): void {
   upsert.run(key, body, Date.now())
+}
+
+export function deleteCached(key: string): void {
+  remove.run(key)
 }

@@ -25,6 +25,20 @@ export interface RawSubmissions {
 
 export type RawCompanyTickers = Record<string, { cik_str: number; ticker: string; title: string }>
 
+// Response checks run before a body is cached. They assert only what the normalizer can't do
+// without, so a column SEC adds or leaves empty doesn't break us.
+
+export function isRawSubmissions(x: unknown): x is RawSubmissions {
+  const filings = (x as { filings?: { recent?: { accessionNumber?: unknown }; files?: unknown } } | null)?.filings
+  return Array.isArray(filings?.recent?.accessionNumber) && Array.isArray(filings?.files)
+}
+
+export function isRawCompanyTickers(x: unknown): x is RawCompanyTickers {
+  if (typeof x !== 'object' || x === null || Array.isArray(x)) return false
+  const entries = Object.values(x) as { cik_str?: unknown; ticker?: unknown }[]
+  return entries.length > 0 && entries.every((e) => typeof e?.cik_str === 'number' && typeof e?.ticker === 'string')
+}
+
 // Zips EDGAR's parallel arrays into one object per filing. Iterates over accessionNumber and reads
 // siblings defensively, so a shorter column yields nulls instead of shifting values between rows.
 // Rows without a form or filing date are dropped: they can't be filtered, sorted or counted.

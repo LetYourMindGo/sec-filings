@@ -67,3 +67,9 @@ NOTES.md line that it has never fired against live data), and #9.
 Record 5 and 7 as Phase 4 and NOTES.md items so they don't get lost.
 
 Do 1, 2 and 8 now with a test each, then commit. Don't start Phase 3 yet.
+
+## 2026-09-14 21:39 UTC
+
+Review the fetch and cache path in edgar/client.ts and cache.ts for what
+   gets written to the cache versus what gets validated. Consider what happens
+   if EDGAR returns a 200 with a body that isn't JSON.
