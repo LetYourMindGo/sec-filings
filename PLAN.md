@@ -58,6 +58,7 @@ treat them as claims to check.
 │  │  ├─ index.ts        # Elysia app + routes
 │  │  ├─ edgar/
 │  │  │  ├─ client.ts    # fetch + UA + rate limit + cache + single-flight
+│  │  │  ├─ company.ts   # in-memory ticker index and normalized filings (added in Phase 3)
 │  │  │  ├─ normalize.ts # columnar → Filing[]   (pure)
 │  │  │  ├─ tickers.ts   # ticker → CIK
 │  │  │  └─ urls.ts      # all URL construction
@@ -120,7 +121,7 @@ nowhere else.
 
 ### 2c. Ticker → CIK — `edgar/tickers.ts`
 
-- [ ] Fetch `company_tickers.json` once and parse into a `Map` keyed by uppercase ticker. `buildTickerIndex` exists; keeping the built Map in memory is wired up in Phase 3
+- [x] Fetch `company_tickers.json` once and parse into a `Map` keyed by uppercase ticker. The built Map is kept in memory by `edgar/company.ts` (Phase 3)
 - [x] Case-insensitive lookup; unknown ticker returns a typed not-found, surfaced as 404
 - [x] Pad the CIK to 10 digits at the submissions boundary; keep it unpadded for Archives URLs
 
@@ -146,7 +147,7 @@ and nothing fetches the `filings.files` chunks.
       the only guard in case a filer ever breaks the one-year rule. If it's set, the counts may be
       short. Without older chunks nothing is missing, e.g. a company listed six months ago. Equal
       counts as truncated because one day's filings can be split between `recent` and a chunk.
-- [ ] Expose `truncated: boolean` on the summary response so a partial result is visible rather than
+- [x] Expose `truncated: boolean` on the summary response so a partial result is visible rather than
       silently wrong
 - [x] `sinceDate` is a parameter of the pure summary function, not read from the clock, so tests
       pin it to the fixture date (2026-09-14). `twelveMonthsBefore(today)` computes it; Feb 29 maps
@@ -161,23 +162,28 @@ same declaration, including coercing numeric query strings.
 
 ### `GET /companies/:ticker/filings`
 
-- [ ] Query: `form?`, `limit?` (default 50, max 200), `offset?` (default 0),
+- [x] Query: `form?`, `limit?` (default 50, max 200), `offset?` (default 0),
       `sort?` (`filingDate` | `-filingDate`, default `-filingDate`)
-- [ ] Response: `{ company: { ticker, cik, name }, items: Filing[], total, limit, offset }`
-- [ ] Filtering, sorting and pagination are pure functions in `service/filings.ts`
-- [ ] Every item carries a `documentUrl` on sec.gov
+- [x] Response: `{ company: { ticker, cik, name }, items: Filing[], total, limit, offset }`
+- [x] Filtering, sorting and pagination are pure functions in `service/filings.ts`
+- [x] Every item carries a `documentUrl` on sec.gov
+- [x] `includeAmendments` (from the Decisions table) widens `form` to `<form>/A`. Form matching is
+      case-insensitive, so `form=10-k` works
+- [x] Each query field carries its own validation message; Elysia's defaults read
+      "should be one of: 'integer', 'integer'"
 
 ### `GET /filings/summary?tickers=AAPL,SPOT,JPM`
 
-- [ ] Parse comma-separated tickers; cap at 10 and reject more, since each one costs upstream requests
-- [ ] Per ticker: `{ ticker, cik, name, countsByForm, totalLast12Months, latest10K, truncated }`
-- [ ] Fetch concurrently with `Promise.allSettled` and isolate failures:
+- [x] Parse comma-separated tickers; cap at 10 and reject more, since each one costs upstream requests
+- [x] Per ticker: `{ ticker, cik, name, countsByForm, totalLast12Months, latest10K, truncated }`
+- [x] Fetch concurrently with `Promise.allSettled` and isolate failures:
       `{ results: [...], errors: [{ ticker, reason }] }`. One unresolvable ticker shouldn't fail the
       whole response.
-- [ ] `latest10K` is the newest exact `10-K` in `recent`, not limited to the 12-month window; `null` when there is none
-- [ ] Dedupe by CIK, not by ticker: `JPM,JPM-PC` is one company and gets one result row, named by the
+- [x] `latest10K` is the newest exact `10-K` in `recent`, not limited to the 12-month window; `null` when there is none
+- [x] Dedupe by CIK, not by ticker: `JPM,JPM-PC` is one company and gets one result row, named by the
       first requested ticker
-- [ ] Window start is `twelveMonthsBefore(todayInNewYork(new Date()))`, computed in the route
+- [x] Window start is `twelveMonthsBefore(todayInNewYork(new Date()))`, computed in the route and
+      returned as `since` next to `results` and `errors`, so the UI can label the window
 
 ### Plumbing
 
@@ -188,14 +194,16 @@ same declaration, including coercing numeric query strings.
 - [x] `index.ts` asserts `EDGAR_USER_AGENT` at startup and exits with a message if it's unset;
       `client.ts` only reads it. Pure modules (`normalize`, `tickers`, `urls`, `service/*`) must not
       import `client.ts`, so `bun test` runs on a fresh clone with no `.env`
-- [ ] Second cache layer: SQLite keeps raw bodies; an in-memory `Map<cik, Filing[]>` holds normalized
+- [x] Second cache layer: SQLite keeps raw bodies; an in-memory `Map<cik, { recent: Filing[], hasOlderChunks }>` holds normalized
       results under the same 1 h TTL, so paging through JPMorgan doesn't re-parse 4.6 MB per request.
       The built ticker `Map` is kept in memory the same way (24 h). No eviction; add the unbounded-map
       limitation to `NOTES.md`
-- [ ] CORS for the Vite dev origin
-- [ ] Error envelope: `{ error: { code, message } }`
-- [ ] `@elysiajs/swagger` for a browsable API surface
-- [ ] Verify both endpoints with `curl` before starting the frontend
+- [x] CORS for the Vite dev origin
+- [x] Error envelope: `{ error: { code, message } }`
+- [x] `@elysiajs/swagger` for a browsable API surface
+- [x] Verify both endpoints with `curl` before starting the frontend. Also checked end to end: a bad
+      cached body gives 502 and deletes its row, and the next request recovers; in a summary, one failing
+      company lands in `errors` while the others return
 
 ---
 
@@ -224,7 +232,7 @@ No component library. Plain elements keep the dependency count and the styling s
 
 ## Phase 5 — Tests (30 min)
 
-Tests for the Phase 2 modules were written during Phase 2 and are ticked below.
+Tests were written alongside Phases 2 and 3; every item below is ticked.
 
 Pure functions against saved fixtures. No network access in tests. `bun test`.
 
@@ -234,12 +242,12 @@ Pure functions against saved fixtures. No network access in tests. `bun test`.
 - [x] Ticker resolution — lowercase input resolves
 - [x] Ticker resolution — unknown ticker returns not-found
 - [x] `documentUrl` — CIK padding correct per host; index-URL fallback when `primaryDocument` is empty
-- [ ] 12-month boundary — a filing dated exactly at the cutoff lands on the documented side
-- [ ] `latest10K` — Spotify fixture returns `null`
-- [ ] `latest10K` — ignores `10-K/A`
-- [ ] `countsByForm` — correct for the Apple fixture
+- [x] 12-month boundary — a filing dated exactly at the cutoff lands on the documented side
+- [x] `latest10K` — Spotify fixture returns `null`
+- [x] `latest10K` — ignores `10-K/A`
+- [x] `countsByForm` — correct for the Apple fixture
 - [x] `truncated` — false for the JPMorgan fixture at 2026-09-14; true when `sinceDate` is older than its oldest row
-- [ ] `filter` + `sort` + `paginate` compose correctly on page 2 of a filtered set
+- [x] `filter` + `sort` + `paginate` compose correctly on page 2 of a filtered set
 
 ---
 

@@ -16,3 +16,7 @@ Decisions, limitations and next steps. `PLAN.md` has the full plan; this file is
 - Expired cache entries are not used as a fallback. If EDGAR is unreachable after an entry's TTL,
   the request fails even though the old body is still in SQLite. This is deliberate: serving stale
   data would need a staleness indicator in every response, which isn't worth it at this scope.
+- The in-memory layer (`server/src/edgar/company.ts`) keeps normalized filings per CIK and never
+  evicts, so memory grows with the number of distinct companies requested. JPMorgan alone is 26k
+  filing objects. Its entries expire on the same TTL as the SQLite rows but count from when they were
+  loaded, so data can be up to two TTLs old (2 h for filings) if it was loaded from a nearly expired row.

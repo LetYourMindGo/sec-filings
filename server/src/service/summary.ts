@@ -1,4 +1,35 @@
-import type { Filing } from 'shared'
+import type { Company, CompanySummary, Filing } from 'shared'
+
+// Counts every form filed on or after `since`, and finds the latest exact 10-K across all of
+// `recent`. 10-K/A is a different form and doesn't count.
+export function summarizeCompany(
+  company: Company,
+  recent: Filing[],
+  hasOlderChunks: boolean,
+  since: string,
+): CompanySummary {
+  const countsByForm: Record<string, number> = {}
+  let totalLast12Months = 0
+  let latest10K: string | null = null
+
+  for (const filing of recent) {
+    if (filing.filingDate >= since) {
+      countsByForm[filing.form] = (countsByForm[filing.form] ?? 0) + 1
+      totalLast12Months++
+    }
+    if (filing.form === '10-K' && (latest10K === null || filing.filingDate > latest10K)) {
+      latest10K = filing.filingDate
+    }
+  }
+
+  return {
+    ...company,
+    countsByForm,
+    totalLast12Months,
+    latest10K,
+    truncated: isTruncated(recent, hasOlderChunks, since),
+  }
+}
 
 // EDGAR assigns filingDate on the Eastern-time business calendar, so "today" is taken in New York,
 // not UTC. Otherwise the window starts a day late for several hours every evening.
