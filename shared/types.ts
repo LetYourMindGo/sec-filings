@@ -8,14 +8,14 @@ export interface Filing {
   reportDate: string | null
   primaryDocument: string | null
   primaryDocDescription: string | null
-  size: number
+  size: number | null
   isXBRL: boolean
   documentUrl: string
 }
 
 export interface Company {
   ticker: string
-  cik: string
+  cik: number
   name: string
 }
 

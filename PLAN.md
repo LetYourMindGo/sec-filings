@@ -94,41 +94,46 @@ The normalizer, both endpoints and the summary all read through this layer, so i
 CIK padding differs between the two EDGAR hosts, so all URL building lives in one module and
 nowhere else.
 
-- [ ] `submissionsUrl(cik)` → `https://data.sec.gov/submissions/CIK{cik padded to 10}.json`
-- [ ] `filingIndexUrl(cik, accession)` →
+- [x] `submissionsUrl(cik)` → `https://data.sec.gov/submissions/CIK{cik padded to 10}.json`
+- [x] `filingIndexUrl(cik, accession)` →
       `https://www.sec.gov/Archives/edgar/data/{cik unpadded}/{accession without dashes}/{accession with dashes}-index.htm`
-- [ ] `primaryDocUrl(cik, accession, primaryDocument)` →
+- [x] `primaryDocUrl(cik, accession, primaryDocument)` →
       `https://www.sec.gov/Archives/edgar/data/{cik unpadded}/{accession without dashes}/{primaryDocument}`
-- [ ] Prefer `primaryDocUrl`; fall back to the index URL when `primaryDocument` is empty
-- [ ] Unit test both against URLs verified by hand in Phase 0
+- [x] Prefer `primaryDocUrl`; fall back to the index URL when `primaryDocument` is empty
+- [x] Unit test both against URLs verified by hand in Phase 0
 
 ### 2b. Rate limiting, caching, request dedupe — `edgar/client.ts`, `cache.ts`
 
-- [ ] **Token bucket at ~8 req/s** for all outbound EDGAR traffic. SEC's published ceiling is 10
-      req/s and clients that exceed it get throttled or blocked.
-- [ ] Set the `User-Agent` in one place. Fail at boot if `EDGAR_USER_AGENT` is unset, rather than
-      surfacing it later as an opaque 403.
-- [ ] **SQLite TTL cache** (`bun:sqlite`): `cache(key TEXT PRIMARY KEY, body TEXT, fetched_at INTEGER)`.
+- [x] **Max 8 req/s** for all outbound EDGAR traffic: request starts are spaced 125 ms apart. SEC's
+      published ceiling is 10 req/s and clients that exceed it get throttled or blocked. A token
+      bucket was the original plan, but a bucket holding 8 tokens can start 16 requests within one
+      second (8 saved up plus 8 refilled), which breaks the ceiling. Fixed spacing can't.
+- [x] Set the `User-Agent` in one place. Fail at boot if `EDGAR_USER_AGENT` is unset, rather than
+      surfacing it later as an opaque 403. `client.ts` throws on import; it takes effect at boot
+      once `index.ts` imports the client in Phase 3.
+- [x] **SQLite TTL cache** (`bun:sqlite`): `cache(key TEXT PRIMARY KEY, body TEXT, fetched_at INTEGER)`.
       Persists across restarts, so development doesn't re-fetch the same submissions.
       TTLs: submissions ~1h, `company_tickers.json` ~24h.
-- [ ] **Single-flight**: a `Map<string, Promise<T>>` of in-flight requests, so a multi-ticker summary
+- [x] **Single-flight**: a `Map<string, Promise<T>>` of in-flight requests, so a multi-ticker summary
       doesn't issue duplicate fetches for the same CIK.
-- [ ] Retry once on 429/5xx with a short backoff. No general retry framework.
+- [x] Retry once on 429/5xx with a short backoff. No general retry framework.
 
 ### 2c. Ticker → CIK — `edgar/tickers.ts`
 
-- [ ] Fetch `company_tickers.json` once and parse into a `Map` keyed by uppercase ticker
-- [ ] Case-insensitive lookup; unknown ticker returns a typed not-found, surfaced as 404
-- [ ] Pad the CIK to 10 digits at the submissions boundary; keep it unpadded for Archives URLs
+- [ ] Fetch `company_tickers.json` once and parse into a `Map` keyed by uppercase ticker. `buildTickerIndex` exists; keeping the built Map in memory is wired up in Phase 3
+- [x] Case-insensitive lookup; unknown ticker returns a typed not-found, surfaced as 404
+- [x] Pad the CIK to 10 digits at the submissions boundary; keep it unpadded for Archives URLs
 
 ### 2d. Normalizer — `edgar/normalize.ts` (pure, no I/O)
 
-- [ ] `normalizeColumnar(cols) → Filing[]`, zipping the parallel arrays by index
-- [ ] Iterate over `accessionNumber.length` and tolerate shorter sibling arrays rather than assuming
+- [x] `normalizeColumnar(cik, cols) → Filing[]`, zipping the parallel arrays by index. Takes the CIK
+      because `documentUrl` needs it. Rows missing `form` or `filingDate` are dropped, since they
+      can't be filtered, sorted or counted
+- [x] Iterate over `accessionNumber.length` and tolerate shorter sibling arrays rather than assuming
       every column has equal length
-- [ ] Produce `{ accessionNumber, form, filingDate, reportDate, primaryDocument,
+- [x] Produce `{ accessionNumber, form, filingDate, reportDate, primaryDocument,
       primaryDocDescription, size, isXBRL, documentUrl }`
-- [ ] Convert EDGAR's empty strings to `null` at this boundary so downstream code has one
+- [x] Convert EDGAR's empty strings to `null` at this boundary so downstream code has one
       representation of "missing"
 
 ### 2e. 12-month window from `filings.recent` (10 min)
@@ -137,12 +142,15 @@ Phase 0 showed that `filings.recent` holds at least one year of filings or 1000 
 is more. JPMorgan's has 26,143 rows covering exactly 12 months. Both endpoints read `recent` only,
 and nothing fetches the `filings.files` chunks.
 
-- [ ] `truncated = oldest recent filingDate > sinceDate`. That flag is the only guard in case a
-      filer ever breaks the one-year rule. If it's set, the counts are an under-count.
+- [x] `truncated = filings.files is non-empty && oldest recent filingDate >= sinceDate`. That flag is
+      the only guard in case a filer ever breaks the one-year rule. If it's set, the counts may be
+      short. Without older chunks nothing is missing, e.g. a company listed six months ago. Equal
+      counts as truncated because one day's filings can be split between `recent` and a chunk.
 - [ ] Expose `truncated: boolean` on the summary response so a partial result is visible rather than
       silently wrong
-- [ ] `sinceDate` is a parameter of the pure summary function, not read from the clock, so tests
-      pin it to the fixture date (2026-09-14)
+- [x] `sinceDate` is a parameter of the pure summary function, not read from the clock, so tests
+      pin it to the fixture date (2026-09-14). `twelveMonthsBefore(today)` computes it; Feb 29 maps
+      to Feb 28.
 
 ---
 
@@ -198,19 +206,21 @@ No component library. Plain elements keep the dependency count and the styling s
 
 ## Phase 5 — Tests (30 min)
 
+Tests for the Phase 2 modules were written during Phase 2 and are ticked below.
+
 Pure functions against saved fixtures. No network access in tests. `bun test`.
 
-- [ ] `normalizeColumnar` — happy path
-- [ ] `normalizeColumnar` — ragged arrays don't throw or misalign columns
-- [ ] `normalizeColumnar` — `""` becomes `null`
-- [ ] Ticker resolution — lowercase input resolves
-- [ ] Ticker resolution — unknown ticker returns not-found
-- [ ] `documentUrl` — CIK padding correct per host; index-URL fallback when `primaryDocument` is empty
+- [x] `normalizeColumnar` — happy path
+- [x] `normalizeColumnar` — ragged arrays don't throw or misalign columns
+- [x] `normalizeColumnar` — `""` becomes `null`
+- [x] Ticker resolution — lowercase input resolves
+- [x] Ticker resolution — unknown ticker returns not-found
+- [x] `documentUrl` — CIK padding correct per host; index-URL fallback when `primaryDocument` is empty
 - [ ] 12-month boundary — a filing dated exactly at the cutoff lands on the documented side
 - [ ] `latest10K` — Spotify fixture returns `null`
 - [ ] `latest10K` — ignores `10-K/A`
 - [ ] `countsByForm` — correct for the Apple fixture
-- [ ] `truncated` — false for the JPMorgan fixture at 2026-09-14; true when `sinceDate` is older than its oldest row
+- [x] `truncated` — false for the JPMorgan fixture at 2026-09-14; true when `sinceDate` is older than its oldest row
 - [ ] `filter` + `sort` + `paginate` compose correctly on page 2 of a filtered set
 
 ---
