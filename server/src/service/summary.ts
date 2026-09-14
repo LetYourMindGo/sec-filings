@@ -1,5 +1,19 @@
 import type { Filing } from 'shared'
 
+// EDGAR assigns filingDate on the Eastern-time business calendar, so "today" is taken in New York,
+// not UTC. Otherwise the window starts a day late for several hours every evening.
+// en-CA with 2-digit parts formats as YYYY-MM-DD.
+const newYorkDate = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/New_York',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+export function todayInNewYork(now: Date): string {
+  return newYorkDate.format(now)
+}
+
 // Start of the "last 12 months" window: the same calendar day one year earlier, inclusive.
 // Feb 29 maps to Feb 28. Dates are YYYY-MM-DD, so string comparison orders them correctly.
 export function twelveMonthsBefore(today: string): string {

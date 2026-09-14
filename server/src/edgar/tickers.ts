@@ -12,6 +12,9 @@ export function buildTickerIndex(raw: RawCompanyTickers): TickerIndex {
 }
 
 // Returns null for an unknown ticker; the route turns that into a 404.
+// EDGAR writes share classes with a dash (BRK-B) where most sources use a dot (BRK.B). The exact
+// match is tried first because one EDGAR ticker contains a literal dot ("NONE.").
 export function lookupTicker(index: TickerIndex, ticker: string): Company | null {
-  return index.get(ticker.trim().toUpperCase()) ?? null
+  const key = ticker.trim().toUpperCase()
+  return index.get(key) ?? index.get(key.replaceAll('.', '-')) ?? null
 }

@@ -175,9 +175,19 @@ same declaration, including coercing numeric query strings.
       `{ results: [...], errors: [{ ticker, reason }] }`. One unresolvable ticker shouldn't fail the
       whole response.
 - [ ] `latest10K` is the newest exact `10-K` in `recent`, not limited to the 12-month window; `null` when there is none
+- [ ] Dedupe by CIK, not by ticker: `JPM,JPM-PC` is one company and gets one result row, named by the
+      first requested ticker
+- [ ] Window start is `twelveMonthsBefore(todayInNewYork(new Date()))`, computed in the route
 
 ### Plumbing
 
+- [ ] `index.ts` asserts `EDGAR_USER_AGENT` at startup and exits with a message if it's unset;
+      `client.ts` only reads it. Pure modules (`normalize`, `tickers`, `urls`, `service/*`) must not
+      import `client.ts`, so `bun test` runs on a fresh clone with no `.env`
+- [ ] Second cache layer: SQLite keeps raw bodies; an in-memory `Map<cik, Filing[]>` holds normalized
+      results under the same 1 h TTL, so paging through JPMorgan doesn't re-parse 4.6 MB per request.
+      The built ticker `Map` is kept in memory the same way (24 h). No eviction; add the unbounded-map
+      limitation to `NOTES.md`
 - [ ] CORS for the Vite dev origin
 - [ ] Error envelope: `{ error: { code, message } }`
 - [ ] `@elysiajs/swagger` for a browsable API surface
@@ -201,6 +211,10 @@ No component library. Plain elements keep the dependency count and the styling s
       explicit "—". A small bar chart if time allows; the table is the requirement.
 - [ ] Loading, error and empty states on both views. An unknown ticker shows the API's message.
 - [ ] Show a footnote when `truncated` is true
+- [ ] Form-type filter offers quick picks (10-K, 10-Q, 8-K) next to free text. 87% of JPMorgan's
+      filings are `424B2`, so its unfiltered list is pages of prospectuses
+- [ ] Summary view: explain "—" in the latest-10-K column. Foreign private issuers such as Spotify
+      file their annual report as `20-F`, so "no 10-K" doesn't mean "no annual report"
 
 ---
 
@@ -240,7 +254,8 @@ Pure functions against saved fixtures. No network access in tests. `bun test`.
       both endpoints. State that `EDGAR_USER_AGENT` must be set to the reader's own name and email.
       SEC requires each client to identify itself, so the repo can't ship a working value.
 - [ ] Verify the README from a fresh `git clone` in an empty directory
-- [ ] **NOTES.md**: the decisions below with their reasons, known limitations, and next steps
+- [ ] **NOTES.md**: the decisions below with their reasons, known limitations (the entries already in
+      `NOTES.md` plus the unbounded in-memory map from Phase 3), and next steps
       (shared cache for multi-instance deploys, full-history backfill, XBRL company facts,
       bulk `submissions.zip` ingestion)
 - [ ] Confirm `prompts/LOG.md` is complete
@@ -254,10 +269,12 @@ Pure functions against saved fixtures. No network access in tests. `bun test`.
 |---|---|---|
 | Does `form=10-K` match `10-K/A`? | Exact match; `?includeAmendments=true` widens it | Amendments are separate filings; merging them distorts per-form counts |
 | Pagination style | `limit` / `offset` with `total` | Cursors add complexity without benefit over a bounded, already-materialized list |
-| "Last 12 months" from when? | `filingDate >= today − 12 months`, UTC, inclusive | EDGAR dates are `YYYY-MM-DD`, so lexicographic comparison is correct and needs no date library |
+| "Last 12 months" from when? | `filingDate >= today − 12 months`, inclusive, with "today" taken in `America/New_York` | EDGAR assigns `filingDate` on the Eastern business calendar; UTC starts the window a day late for several hours each evening. Dates are `YYYY-MM-DD`, so lexicographic comparison is correct and needs no date library |
 | Company with no 10-K | `latest10K: null` | Foreign private issuers file 20-F instead; Spotify is one of the suggested test companies |
 | `latest10K` time bound | Everything in `filings.recent` | `recent` covers at least a year, and an active 10-K filer files one a year, so the latest 10-K is in `recent` unless the company stopped filing 10-Ks more than a year and 1000 filings ago |
 | One ticker fails in a multi-ticker summary | Partial results plus an `errors[]` array | A summary over several companies should degrade per company rather than fail entirely |
+| Form name variants (`SC 13G` vs `SCHEDULE 13G`) | Kept as separate forms in filters and counts | EDGAR's form string is the form type. A hand-rolled alias table would silently merge distinct forms |
+| `BRK.B` vs EDGAR's `BRK-B` | Exact match first, then retry with dots replaced by dashes | Most sources write share classes with a dot. The exact match comes first because one EDGAR ticker contains a literal dot (`NONE.`) |
 | Unknown ticker | 404 with a message | An empty list is indistinguishable from a company that has filed nothing |
 | Cache backing | SQLite via `bun:sqlite` | Small, dependency-free, and survives restarts |
 | Full history backfill | No — 12-month window fetched on demand | An ingestion pipeline is out of scope for the time budget |

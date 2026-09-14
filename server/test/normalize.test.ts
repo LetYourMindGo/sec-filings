@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test'
 import { normalizeColumnar } from '../src/edgar/normalize'
 import aapl from './fixtures/aapl-submissions.json'
+import spot from './fixtures/spot-submissions.json'
 
 test('zips every column into one filing per row', () => {
   const filings = normalizeColumnar(320193, aapl.filings.recent)
@@ -17,6 +18,17 @@ test('zips every column into one filing per row', () => {
     isXBRL: true,
     documentUrl: 'https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm',
   })
+})
+
+test('keeps form strings verbatim, so SC 13G and SCHEDULE 13G stay distinct', () => {
+  const forms = new Set(normalizeColumnar(1639920, spot.filings.recent).map((f) => f.form))
+
+  expect([...forms].filter((f) => f.includes('13G')).sort()).toEqual([
+    'SC 13G',
+    'SC 13G/A',
+    'SCHEDULE 13G',
+    'SCHEDULE 13G/A',
+  ])
 })
 
 test('converts empty strings to null', () => {

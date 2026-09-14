@@ -1,8 +1,17 @@
 import { expect, test } from 'bun:test'
 import { normalizeColumnar } from '../src/edgar/normalize'
-import { isTruncated, twelveMonthsBefore } from '../src/service/summary'
+import { isTruncated, todayInNewYork, twelveMonthsBefore } from '../src/service/summary'
 import jpm from './fixtures/jpm-submissions.json'
 import spot from './fixtures/spot-submissions.json'
+
+test('today follows the New York calendar, not UTC, across both DST offsets', () => {
+  // 22:00 EDT on Sep 14 is already Sep 15 in UTC.
+  expect(todayInNewYork(new Date('2026-09-15T02:00:00Z'))).toBe('2026-09-14')
+  expect(todayInNewYork(new Date('2026-09-15T04:00:00Z'))).toBe('2026-09-15')
+  // EST is UTC-5.
+  expect(todayInNewYork(new Date('2026-01-15T04:59:00Z'))).toBe('2026-01-14')
+  expect(todayInNewYork(new Date('2026-01-15T05:00:00Z'))).toBe('2026-01-15')
+})
 
 test('window starts on the same day one year earlier', () => {
   expect(twelveMonthsBefore('2026-09-14')).toBe('2025-09-14')
