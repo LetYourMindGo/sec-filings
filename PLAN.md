@@ -283,7 +283,7 @@ Pure functions against saved fixtures. No network access in tests. `bun test`.
       (shared cache for multi-instance deploys, full-history backfill, XBRL company facts,
       bulk `submissions.zip` ingestion)
 - [x] Confirm `prompts/LOG.md` is complete: one entry per prompt, 16 as of the push
-- [ ] Push to GitHub and check the README renders correctly
+- [x] Push to GitHub and check the README renders correctly
 
 ---
 
