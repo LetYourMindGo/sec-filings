@@ -1,0 +1,8 @@
+{
+  "name": "shared",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./types.ts"
+  }
+}

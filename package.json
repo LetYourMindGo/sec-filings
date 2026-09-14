@@ -1,0 +1,11 @@
+{
+  "name": "sec-filings",
+  "private": true,
+  "workspaces": ["server", "web", "shared"],
+  "scripts": {
+    "dev": "bun run --filter server --filter web dev",
+    "dev:server": "bun run --filter server dev",
+    "dev:web": "bun run --filter web dev",
+    "test": "bun test server"
+  }
+}
