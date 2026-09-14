@@ -26,6 +26,9 @@ export interface CompanySummary extends Company {
   truncated: boolean
 }
 
+// GET /companies/:ticker/filings `sort` values
+export type Sort = 'filingDate' | '-filingDate'
+
 // GET /companies/:ticker/filings
 export interface FilingsResponse {
   company: Company

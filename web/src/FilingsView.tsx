@@ -1,7 +1,7 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
-import type { FilingsResponse } from 'shared'
-import { fetchFilings, PAGE_SIZE, type Sort } from './api'
+import type { FilingsResponse, Sort } from 'shared'
+import { fetchFilings, PAGE_SIZE } from './api'
 import type { UpdateParams } from './App'
 
 const PRESET_TICKERS = ['AAPL', 'SPOT', 'JPM']
@@ -13,8 +13,8 @@ interface Props {
 }
 
 export default function FilingsView({ params, update }: Props) {
-  const ticker = (params.get('ticker') ?? 'AAPL').toUpperCase()
-  const form = params.get('form') ?? ''
+  const ticker = (params.get('ticker') || 'AAPL').toUpperCase()
+  const form = (params.get('form') ?? '').toUpperCase()
   const includeAmendments = params.get('includeAmendments') === 'true'
   const sort: Sort = params.get('sort') === 'filingDate' ? 'filingDate' : '-filingDate'
   const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1)
@@ -27,14 +27,14 @@ export default function FilingsView({ params, update }: Props) {
   })
 
   // Any change other than paging starts again at page 1.
-  const change = (patch: Record<string, string | null>) => update({ ...patch, page: null })
+  const change: UpdateParams = (patch) => update({ ...patch, page: null })
 
   function submitText(field: 'ticker' | 'form') {
     return (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault()
       const value = String(new FormData(event.currentTarget).get(field) ?? '').trim()
       if (field === 'ticker' && !value) return
-      change({ [field]: field === 'ticker' ? value.toUpperCase() : value })
+      change({ [field]: value.toUpperCase() })
     }
   }
 
@@ -98,9 +98,10 @@ function FilingsResult({ query, form, sort, page, update, change }: ResultProps)
   if (query.isError) return <p className="status error">{query.error.message}</p>
 
   const { company, items, total, offset } = query.data
-  const first = total === 0 ? 0 : offset + 1
+  // Only read when items is non-empty, so total > 0.
+  const first = offset + 1
   const last = offset + items.length
-  const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const lastPage = Math.ceil(total / PAGE_SIZE)
 
   return (
     <>

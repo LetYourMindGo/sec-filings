@@ -1,6 +1,6 @@
 import { swagger } from '@elysiajs/swagger'
 import { Elysia, t } from 'elysia'
-import type { Company } from 'shared'
+import type { Company, CompanySummary, FilingsResponse, SummaryResponse } from 'shared'
 import { EdgarError } from './edgar/client'
 import { getCompanyFilings, getTickerIndex } from './edgar/company'
 import { lookupTicker } from './edgar/tickers'
@@ -46,11 +46,11 @@ const app = new Elysia()
 
       const { recent } = await getCompanyFilings(company.cik)
       const { items, total } = listFilings(recent, query)
-      return { company, items, total, limit: query.limit, offset: query.offset }
+      return { company, items, total, limit: query.limit, offset: query.offset } satisfies FilingsResponse
     },
     {
       // Each field names its own error; Elysia's defaults read "should be one of: 'integer', 'integer'".
-      params: t.Object({ ticker: t.String({ minLength: 1, error: 'ticker is required' }) }),
+      params: t.Object({ ticker: t.String() }),
       query: t.Object({
         form: t.Optional(t.String({ minLength: 1, error: 'form must not be empty' })),
         includeAmendments: t.Boolean({ default: false, error: 'includeAmendments must be true or false' }),
@@ -73,7 +73,7 @@ const app = new Elysia()
       }
 
       const index = await getTickerIndex()
-      const errors: { ticker: string; reason: string }[] = []
+      const errors: SummaryResponse['errors'] = []
       // One row per CIK: JPM and JPM-PC are the same company. The first requested ticker names it.
       const companies = new Map<number, Company>()
       for (const ticker of tickers) {
@@ -91,7 +91,7 @@ const app = new Elysia()
         }),
       )
 
-      const results = []
+      const results: CompanySummary[] = []
       for (const [i, outcome] of settled.entries()) {
         if (outcome.status === 'fulfilled') {
           results.push(outcome.value)
@@ -101,7 +101,7 @@ const app = new Elysia()
           errors.push({ ticker: requested[i]!.ticker, reason })
         }
       }
-      return { since, results, errors }
+      return { since, results, errors } satisfies SummaryResponse
     },
     { query: t.Object({ tickers: t.String({ minLength: 1, error: 'tickers is required, e.g. tickers=AAPL,JPM' }) }) },
   )

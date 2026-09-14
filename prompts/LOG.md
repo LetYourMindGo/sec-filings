@@ -208,3 +208,44 @@ Delete the temp clone afterwards.
 ## 2026-09-14 22:25 UTC
 
 yes, fix the hook path
+
+## 2026-09-14 22:37 UTC
+
+Phase 6. Review the whole tree as a reviewer would: git diff 3da10ac..HEAD.
+
+Constraints: no new features, no refactoring for taste, tests must still pass.
+Only remove, clarify, or correct.
+
+Look for:
+- Single-caller abstractions and config with one value. Candidates I noticed,
+  each to evaluate rather than delete on sight: API_BASE is now the empty
+  string; RawSubmissions.filings.files declares four fields when only .length
+  is read; company.ts uses a Map with a single 'all' key to reuse remember();
+  filingIndexUrl and primaryDocUrl may only have test callers outside
+  documentUrl.
+- Comments describing code that has since changed. The isTruncated comment
+  still points at "PLAN.md Phase 2e" — check that reference still makes sense.
+- PLAN.md's Phase 1 file tree predates edgar/company.ts and web/src/styles.css
+  and still implies chunkUrl. Update it to match the repo.
+- Two wording fixes in SummaryView: the † footnote says "this company" but
+  renders once under a multi-row table, and the * footnote explains any missing
+  10-K as a foreign private issuer, which wouldn't hold for a domestic filer.
+- Tick the PLAN.md checkboxes that are actually done, including the README and
+  the fresh-clone verification.
+
+Then run /simplify, then /code-review. Report what each found and what you
+applied before committing.
+
+## 2026-09-14 22:56 UTC
+
+Finish NOTES.md. Prose rules from CLAUDE.md apply. Don't duplicate README.md or
+PLAN.md; link to them.
+
+Keep the five entries already under "Known limitations" as they are — the
+truncated false-alarm reasoning, the 20-F case, the 424B2 noise, the no-stale-
+fallback decision and the eviction/two-TTL note. Replace the opening line that
+says the file is completed in Phase 7.
+
+## 2026-09-14 22:59 UTC
+
+yes, commit both

@@ -3,8 +3,7 @@ import FilingsView from './FilingsView'
 import SummaryView from './SummaryView'
 
 // The URL's search params are the app state. Updates push a history entry, so back and forward work.
-export type ParamsPatch = Record<string, string | null>
-export type UpdateParams = (patch: ParamsPatch) => void
+export type UpdateParams = (patch: Record<string, string | null>) => void
 
 function useSearchParams(): [URLSearchParams, UpdateParams] {
   const [search, setSearch] = useState(window.location.search)

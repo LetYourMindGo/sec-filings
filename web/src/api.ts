@@ -1,13 +1,6 @@
-import type { FilingsResponse, SummaryResponse } from 'shared'
+import type { FilingsResponse, Sort, SummaryResponse } from 'shared'
 
-// Empty: the Vite dev server proxies /companies and /filings to the API (web/vite.config.ts).
-export const API_BASE = ''
 export const PAGE_SIZE = 50
-
-export type Sort = 'filingDate' | '-filingDate'
-
-// Carries the message from the API's { error: { code, message } } envelope.
-export class ApiError extends Error {}
 
 export interface FilingsParams {
   ticker: string
@@ -35,15 +28,17 @@ export function fetchSummary(tickers: string): Promise<SummaryResponse> {
 async function getJson<T>(path: string): Promise<T> {
   let response: Response
   try {
-    response = await fetch(`${API_BASE}${path}`)
+    // Same-origin: the Vite dev server proxies /companies and /filings to the API (web/vite.config.ts).
+    response = await fetch(path)
   } catch {
-    throw new ApiError('Could not reach the dev server. Is bun dev running?')
+    throw new Error('Could not reach the dev server. Is bun dev running?')
   }
 
   const body = await response.json().catch(() => null)
+  // Errors carry the message from the API's { error: { code, message } } envelope.
   if (!response.ok) {
     // No envelope means the answer came from the Vite proxy, which sends an empty 502 when the API is down.
-    throw new ApiError(body?.error?.message ?? `No response from the API (${response.status}). Is it running on port 3000?`)
+    throw new Error(body?.error?.message ?? `No response from the API (${response.status}). Is it running on port 3000?`)
   }
   return body as T
 }

@@ -3,7 +3,8 @@ import { isRawCompanyTickers, isRawSubmissions, type RawCompanyTickers, type Raw
 import { COMPANY_TICKERS_URL, submissionsUrl } from './urls'
 
 // The only module that talks to EDGAR. Everything outbound goes through fetchJson, which applies
-// the User-Agent, the rate limit, the cache, single-flight and one retry.
+// the User-Agent, the rate limit, the cache and one retry. Concurrent callers share one load in
+// edgar/company.ts, the only caller.
 
 export const SUBMISSIONS_TTL_MS = 60 * 60 * 1000
 export const TICKERS_TTL_MS = 24 * 60 * 60 * 1000
@@ -26,28 +27,18 @@ export function getCompanyTickers(): Promise<RawCompanyTickers> {
   return fetchJson(COMPANY_TICKERS_URL, TICKERS_TTL_MS, isRawCompanyTickers)
 }
 
-const inFlight = new Map<string, Promise<unknown>>()
-
 // A body is cached only after it parses and passes isValid. A cached body that fails the check
 // (written by older code, or a changed shape) is deleted, so the next request fetches again.
-function fetchJson<T>(url: string, maxAgeMs: number, isValid: (x: unknown) => x is T): Promise<T> {
-  const existing = inFlight.get(url)
-  if (existing) return existing as Promise<T>
-
-  const request = (async () => {
-    const cached = getCached(url, maxAgeMs)
-    const body = cached ?? (await fetchText(url))
-    const data = parseJson(body)
-    if (!isValid(data)) {
-      deleteCached(url)
-      throw new EdgarError(url, `unexpected response body: ${body.slice(0, 100)}`)
-    }
-    if (cached === null) setCached(url, body)
-    return data
-  })().finally(() => inFlight.delete(url))
-
-  inFlight.set(url, request)
-  return request
+async function fetchJson<T>(url: string, maxAgeMs: number, isValid: (x: unknown) => x is T): Promise<T> {
+  const cached = getCached(url, maxAgeMs)
+  const body = cached ?? (await fetchText(url))
+  const data = parseJson(body)
+  if (!isValid(data)) {
+    deleteCached(url)
+    throw new EdgarError(url, `unexpected response body: ${body.slice(0, 100)}`)
+  }
+  if (cached === null) setCached(url, body)
+  return data
 }
 
 function parseJson(body: string): unknown {
@@ -59,13 +50,19 @@ function parseJson(body: string): unknown {
 }
 
 async function fetchText(url: string): Promise<string> {
-  let response = await rateLimitedFetch(url)
-  if (response.status === 429 || response.status >= 500) {
-    await Bun.sleep(1000)
-    response = await rateLimitedFetch(url)
+  try {
+    let response = await rateLimitedFetch(url)
+    if (response.status === 429 || response.status >= 500) {
+      await Bun.sleep(1000)
+      response = await rateLimitedFetch(url)
+    }
+    if (!response.ok) throw new EdgarError(url, `returned ${response.status}`)
+    return await response.text()
+  } catch (error) {
+    // A rejected fetch (DNS, refused or reset connection) is an upstream failure too, not a server bug.
+    if (error instanceof EdgarError) throw error
+    throw new EdgarError(url, `request failed: ${error instanceof Error ? error.message : String(error)}`)
   }
-  if (!response.ok) throw new EdgarError(url, `returned ${response.status}`)
-  return response.text()
 }
 
 let nextSlot = 0

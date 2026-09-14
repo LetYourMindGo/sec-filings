@@ -39,6 +39,20 @@ test('a 200 with an HTML body throws with the URL and caches nothing', async () 
   expect(getCached(url, Infinity)).toBeNull()
 })
 
+test('a network failure throws EdgarError with the URL and caches nothing', async () => {
+  const cik = 9999999903
+  const url = submissionsUrl(cik)
+  globalThis.fetch = (async () => {
+    throw new TypeError('fetch failed: connection refused')
+  }) as unknown as typeof fetch
+
+  const error = await rejection(getSubmissions(cik))
+
+  expect(error.url).toBe(url)
+  expect(error.message).toContain('connection refused')
+  expect(getCached(url, Infinity)).toBeNull()
+})
+
 test('valid JSON in the wrong shape throws with the URL, fresh or already cached, and leaves no row', async () => {
   const cik = 9999999902
   const url = submissionsUrl(cik)

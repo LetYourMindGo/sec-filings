@@ -46,37 +46,41 @@ treat them as claims to check.
 ## Phase 1 — Scaffold (20 min)
 
 ```
-├─ package.json          # bun workspaces: ["server", "web", "shared"]
+├─ package.json          # bun workspaces: ["server", "web", "shared"]; dev, dev:server, dev:web, test
+├─ .env.example          # EDGAR_USER_AGENT placeholder; the real value lives in untracked .env
 ├─ README.md
 ├─ NOTES.md
 ├─ PLAN.md
-├─ prompts/              # prompt log
+├─ prompts/LOG.md        # prompt log, appended by the hook in .claude/settings.json
 ├─ shared/
-│  └─ types.ts           # Filing, Company, CompanySummary
+│  └─ types.ts           # Filing, Company, CompanySummary, FilingsResponse, SummaryResponse
 ├─ server/
 │  ├─ src/
-│  │  ├─ index.ts        # Elysia app + routes
+│  │  ├─ index.ts        # startup check, Elysia routes, error envelope, Swagger
+│  │  ├─ cache.ts        # bun:sqlite TTL store for raw EDGAR bodies
 │  │  ├─ edgar/
-│  │  │  ├─ client.ts    # fetch + UA + rate limit + cache + single-flight
-│  │  │  ├─ company.ts   # in-memory ticker index and normalized filings (added in Phase 3)
-│  │  │  ├─ normalize.ts # columnar → Filing[]   (pure)
-│  │  │  ├─ tickers.ts   # ticker → CIK
-│  │  │  └─ urls.ts      # all URL construction
-│  │  ├─ service/
-│  │  │  ├─ filings.ts   # filter / sort / paginate  (pure)
-│  │  │  └─ summary.ts   # 12-month rollup           (pure)
-│  │  └─ cache.ts        # bun:sqlite TTL store
-│  └─ test/
+│  │  │  ├─ client.ts    # the only network code: UA, rate limit, SQLite cache, retry
+│  │  │  ├─ company.ts   # in-memory ticker index and normalized filings per CIK; single-flight
+│  │  │  ├─ normalize.ts # raw EDGAR types, response checks, columnar → Filing[]  (pure)
+│  │  │  ├─ tickers.ts   # ticker → CIK  (pure)
+│  │  │  └─ urls.ts      # all URL construction  (pure)
+│  │  └─ service/
+│  │     ├─ filings.ts   # filter / sort / paginate  (pure)
+│  │     └─ summary.ts   # 12-month rollup, window start, truncated  (pure)
+│  └─ test/              # bun tests; fixtures/ holds trimmed EDGAR responses
 └─ web/
+   ├─ vite.config.ts     # dev proxy for /companies and /filings to :3000
    └─ src/
-      ├─ App.tsx
-      ├─ api.ts          # Eden client (or plain fetch)
+      ├─ main.tsx        # TanStack Query provider
+      ├─ App.tsx         # URL search params as state; view switch
+      ├─ api.ts          # plain fetch, typed with the shared response types
       ├─ FilingsView.tsx
-      └─ SummaryView.tsx
+      ├─ SummaryView.tsx
+      └─ styles.css
 ```
 
 - [x] `bun init`; root `package.json` with `"workspaces": ["server", "web", "shared"]`
-- [x] `cd server && bun add elysia @elysiajs/cors`
+- [x] `cd server && bun add elysia @elysiajs/cors` (`@elysiajs/cors` removed later in favour of the Vite proxy)
 - [x] `cd web && bun create vite . --template react-ts && bun add @tanstack/react-query`
 - [x] Root scripts: `dev`, `dev:server`, `dev:web`, `test`
 - [x] `.gitignore`: `.env`, `node_modules`, and the SQLite cache file
@@ -96,11 +100,11 @@ CIK padding differs between the two EDGAR hosts, so all URL building lives in on
 nowhere else.
 
 - [x] `submissionsUrl(cik)` → `https://data.sec.gov/submissions/CIK{cik padded to 10}.json`
-- [x] `filingIndexUrl(cik, accession)` →
-      `https://www.sec.gov/Archives/edgar/data/{cik unpadded}/{accession without dashes}/{accession with dashes}-index.htm`
-- [x] `primaryDocUrl(cik, accession, primaryDocument)` →
-      `https://www.sec.gov/Archives/edgar/data/{cik unpadded}/{accession without dashes}/{primaryDocument}`
-- [x] Prefer `primaryDocUrl`; fall back to the index URL when `primaryDocument` is empty
+- [x] `documentUrl(cik, accession, primaryDocument)` →
+      `https://www.sec.gov/Archives/edgar/data/{cik unpadded}/{accession without dashes}/{primaryDocument}`,
+      or `.../{accession with dashes}-index.htm` when `primaryDocument` is empty. (Planned as separate
+      `primaryDocUrl` and `filingIndexUrl`; folded in during Phase 6 because `documentUrl` was their
+      only caller)
 - [x] Unit test both against URLs verified by hand in Phase 0
 
 ### 2b. Rate limiting, caching, request dedupe — `edgar/client.ts`, `cache.ts`
@@ -117,6 +121,8 @@ nowhere else.
       TTLs: submissions ~1h, `company_tickers.json` ~24h.
 - [x] **Single-flight**: a `Map<string, Promise<T>>` of in-flight requests, so a multi-ticker summary
       doesn't issue duplicate fetches for the same CIK.
+      Moved in Phase 6: `remember()` in `edgar/company.ts` stores the loading promise and is the
+      client's only caller, so the client's own in-flight map could never match and was removed
 - [x] Retry once on 429/5xx with a short backoff. No general retry framework.
 
 ### 2c. Ticker → CIK — `edgar/tickers.ts`
@@ -258,20 +264,21 @@ Pure functions against saved fixtures. No network access in tests. `bun test`.
 
 ## Phase 6 — Review the diff (20 min)
 
-- [ ] Read the full diff as a reviewer would
-- [ ] Remove unused helpers, single-caller abstractions, and comments describing code that has changed
-- [ ] Rewrite anything that can't be explained simply
-- [ ] Re-apply the "why does this file exist?" check across the tree
+- [x] Read the full diff as a reviewer would
+- [x] Remove unused helpers, single-caller abstractions, and comments describing code that has changed
+- [x] Rewrite anything that can't be explained simply
+- [x] Re-apply the "why does this file exist?" check across the tree
 
 ---
 
 ## Phase 7 — Ship (20 min)
 
-- [ ] **README**: overview, `bun install`, `bun dev`, `bun test`, and runnable curl examples for
+- [x] **README**: overview, `bun install`, `bun dev`, `bun test`, and runnable curl examples for
       both endpoints. State that `EDGAR_USER_AGENT` must be set to the reader's own name and email.
       SEC requires each client to identify itself, so the repo can't ship a working value.
-- [ ] Verify the README from a fresh `git clone` in an empty directory
-- [ ] **NOTES.md**: the decisions below with their reasons, known limitations (the entries already in
+- [x] Verify the README from a fresh `git clone` in an empty directory. Done with Node removed from
+      `PATH` too; two inaccurate README sentences were fixed
+- [x] **NOTES.md**: the decisions below with their reasons, known limitations (the entries already in
       `NOTES.md` plus the unbounded in-memory map from Phase 3), and next steps
       (shared cache for multi-instance deploys, full-history backfill, XBRL company facts,
       bulk `submissions.zip` ingestion)

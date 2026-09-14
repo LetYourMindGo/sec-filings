@@ -5,13 +5,15 @@ import { buildTickerIndex, type TickerIndex } from './tickers'
 
 // In-memory layer over the client. SQLite keeps raw bodies across restarts; this keeps the parsed
 // and normalized results, so paging through JPMorgan doesn't re-parse 4.6 MB per request.
-// Entries expire on the same TTLs as the raw bodies. Nothing is evicted (see NOTES.md).
+// Entries use the same TTLs as the raw bodies, counted from when they were loaded. Nothing is
+// evicted (see NOTES.md).
 
 export interface CompanyFilings {
   recent: Filing[]
   hasOlderChunks: boolean
 }
 
+// The ticker file is a single resource, so its map has one key; a map lets it share remember().
 const tickerIndex = new Map<'all', Entry<TickerIndex>>()
 const filingsByCik = new Map<number, Entry<CompanyFilings>>()
 

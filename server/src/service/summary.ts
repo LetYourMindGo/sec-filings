@@ -53,10 +53,11 @@ export function twelveMonthsBefore(today: string): string {
   return month === '02' && day === '29' ? start.replace(/-29$/, '-28') : start
 }
 
-// filings.recent always holds at least a year of filings (PLAN.md Phase 2e). If older filings exist in
-// filings.files and recent doesn't reach before the window start, the counts may be short. Equal
-// counts as truncated because a single day's filings can be split between recent and a chunk.
-// A company whose whole history is younger than the window has no older chunks and isn't truncated.
+// filings.recent held at least a year of filings for every company checked during recon (PLAN.md
+// "Recon notes"), so chunks aren't fetched. This flag catches a company where that doesn't hold: if
+// older filings exist in filings.files and recent doesn't reach before the window start, counts may
+// be short. Equal counts as truncated because one day's filings can be split between recent and a
+// chunk. A company whose whole history is younger than the window has no older chunks.
 export function isTruncated(recent: Filing[], hasOlderChunks: boolean, since: string): boolean {
   if (!hasOlderChunks || recent.length === 0) return false
   const oldest = recent.reduce((min, f) => (f.filingDate < min ? f.filingDate : min), recent[0]!.filingDate)

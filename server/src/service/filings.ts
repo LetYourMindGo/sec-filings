@@ -1,9 +1,9 @@
-import type { Filing } from 'shared'
+import type { Filing, Sort } from 'shared'
 
 export interface FilingsQuery {
   form?: string
   includeAmendments: boolean
-  sort: 'filingDate' | '-filingDate'
+  sort: Sort
   limit: number
   offset: number
 }

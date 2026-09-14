@@ -15,11 +15,10 @@ export interface RawFilingColumns {
 }
 
 export interface RawSubmissions {
-  cik: string
-  name: string
   filings: {
     recent: RawFilingColumns
-    files: { name: string; filingCount: number; filingFrom: string; filingTo: string }[]
+    // Older filing chunks. Only whether any exist is read; they are never fetched.
+    files: unknown[]
   }
 }
 

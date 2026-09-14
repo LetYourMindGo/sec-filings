@@ -13,7 +13,7 @@ interface Props {
 }
 
 export default function SummaryView({ params, update }: Props) {
-  const tickers = params.get('tickers') ?? DEFAULT_TICKERS
+  const tickers = params.get('tickers') || DEFAULT_TICKERS
   const query = useQuery({ queryKey: ['summary', tickers], queryFn: () => fetchSummary(tickers) })
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -116,14 +116,14 @@ function SummaryTable({ results, update }: { results: CompanySummary[]; update: 
 
       {anyMissing10K && (
         <p className="footnote">
-          * No 10-K on file. Foreign private issuers such as Spotify file their annual report on Form 20-F
-          instead.
+          * No 10-K in EDGAR's recent filings. Not every company files one: foreign private issuers such as
+          Spotify file their annual report on Form 20-F instead.
         </p>
       )}
       {anyTruncated && (
         <p className="footnote">
-          † EDGAR's recent-filings list for this company doesn't reach back to the start of the window, so this
-          count may be low.
+          † For marked companies, EDGAR's recent-filings list doesn't reach back to the start of the window, so
+          their counts may be low.
         </p>
       )}
     </>
