@@ -23,8 +23,8 @@ An API over the SEC EDGAR submissions data, with a small React UI on top of it.
 - CIK padding differs by host: **zero-padded to 10 digits** for `data.sec.gov/submissions/`,
   **unpadded** for `www.sec.gov/Archives/`. All URL construction lives in
   `server/src/edgar/urls.ts` and nowhere else.
-- `filings.recent` is capped at roughly 1000 filings and may not span 12 months for high-volume
-  filers. See `PLAN.md` Phase 2e.
+- `filings.recent` holds at least 12 months of filings or 1000 filings, whichever is more. Both
+  endpoints read `recent` only; the `filings.files` chunks are never fetched. See `PLAN.md` Phase 2e.
 
 ## Conventions
 

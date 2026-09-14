@@ -19,27 +19,27 @@ ticker-to-CIK indirection, and a `recent` list that silently caps. Inspect the l
 designing against them. The shapes described in this file come from documentation and memory, so
 treat them as claims to check.
 
-- [ ] Export `EDGAR_USER_AGENT` in the shell before any request. EDGAR returns **403** without a
+- [x] Export `EDGAR_USER_AGENT` in the shell before any request. EDGAR returns **403** without a
       `User-Agent` carrying contact info. Format: `"Name email@example.com"`.
       Keep the real value out of tracked files; it's a personal contact address and this repo
       will be public.
-- [ ] `curl -H "User-Agent: $EDGAR_USER_AGENT" https://www.sec.gov/files/company_tickers.json`
+- [x] `curl -H "User-Agent: $EDGAR_USER_AGENT" https://www.sec.gov/files/company_tickers.json`
       → confirm the shape (object keyed by index, `{ cik_str, ticker, title }`) and the payload size.
-- [ ] `curl -H "User-Agent: $EDGAR_USER_AGENT" https://data.sec.gov/submissions/CIK0000320193.json`
+- [x] `curl -H "User-Agent: $EDGAR_USER_AGENT" https://data.sec.gov/submissions/CIK0000320193.json`
       (Apple) → inspect the `filings.recent` keys and the `filings.files` list.
-- [ ] Same for **JPMorgan** (CIK 0000019617), a high-volume filer. Check whether `filings.recent`
+- [x] Same for **JPMorgan** (CIK 0000019617), a high-volume filer. Check whether `filings.recent`
       still spans the last 12 months. The answer determines whether Phase 2e is required.
-- [ ] Same for **Spotify** (find `SPOT` in `company_tickers.json`). As a foreign private issuer it
+- [x] Same for **Spotify** (find `SPOT` in `company_tickers.json`). As a foreign private issuer it
       files 20-F and 6-K and has no 10-K, so the summary must handle a null `latest10K`.
-- [ ] Fetch one `filings.files` chunk directly, e.g.
+- [x] Fetch one `filings.files` chunk directly, e.g.
       `https://data.sec.gov/submissions/CIK0000019617-submissions-001.json`
       → confirm whether the columnar arrays sit at the top level or nested under `filings`.
       The normalizer depends on this.
-- [ ] Check whether `filings.files[]` entries carry `filingFrom` / `filingTo`. If they do, chunks
+- [x] Check whether `filings.files[]` entries carry `filingFrom` / `filingTo`. If they do, chunks
       overlapping the 12-month window can be selected without fetching all of them.
-- [ ] Save trimmed fixtures (a few hundred rows each) to `server/test/fixtures/`:
+- [x] Save trimmed fixtures (a few hundred rows each) to `server/test/fixtures/`:
       `company_tickers`, `aapl-submissions`, `jpm-submissions`, `jpm-chunk-001`, `spot-submissions`.
-- [ ] Record findings in the *Recon notes* section at the bottom of this file.
+- [x] Record findings in the *Recon notes* section at the bottom of this file.
 
 ---
 
@@ -52,7 +52,7 @@ treat them as claims to check.
 ├─ PLAN.md
 ├─ prompts/              # prompt log
 ├─ shared/
-│  └─ types.ts           # Filing, CompanySummary, FormType
+│  └─ types.ts           # Filing, Company, CompanySummary
 ├─ server/
 │  ├─ src/
 │  │  ├─ index.ts        # Elysia app + routes
@@ -74,14 +74,14 @@ treat them as claims to check.
       └─ SummaryView.tsx
 ```
 
-- [ ] `bun init`; root `package.json` with `"workspaces": ["server", "web", "shared"]`
-- [ ] `cd server && bun add elysia @elysiajs/cors`
-- [ ] `cd web && bun create vite . --template react-ts && bun add @tanstack/react-query`
-- [ ] Root scripts: `dev`, `dev:server`, `dev:web`, `test`
-- [ ] `.gitignore`: `.env`, `node_modules`, and the SQLite cache file
-- [ ] `.env.example` with a placeholder: `EDGAR_USER_AGENT="Your Name your@email.com"`.
+- [x] `bun init`; root `package.json` with `"workspaces": ["server", "web", "shared"]`
+- [x] `cd server && bun add elysia @elysiajs/cors`
+- [x] `cd web && bun create vite . --template react-ts && bun add @tanstack/react-query`
+- [x] Root scripts: `dev`, `dev:server`, `dev:web`, `test`
+- [x] `.gitignore`: `.env`, `node_modules`, and the SQLite cache file
+- [x] `.env.example` with a placeholder: `EDGAR_USER_AGENT="Your Name your@email.com"`.
       The real value lives in `.env`, which stays untracked.
-- [ ] Commit at each phase boundary
+- [x] Commit at each phase boundary
 
 ---
 
@@ -95,7 +95,6 @@ CIK padding differs between the two EDGAR hosts, so all URL building lives in on
 nowhere else.
 
 - [ ] `submissionsUrl(cik)` → `https://data.sec.gov/submissions/CIK{cik padded to 10}.json`
-- [ ] `chunkUrl(name)` → `https://data.sec.gov/submissions/{name}`
 - [ ] `filingIndexUrl(cik, accession)` →
       `https://www.sec.gov/Archives/edgar/data/{cik unpadded}/{accession without dashes}/{accession with dashes}-index.htm`
 - [ ] `primaryDocUrl(cik, accession, primaryDocument)` →
@@ -132,20 +131,18 @@ nowhere else.
 - [ ] Convert EDGAR's empty strings to `null` at this boundary so downstream code has one
       representation of "missing"
 
-### 2e. 12-month window across `filings.files` (60 min if needed)
+### 2e. 12-month window from `filings.recent` (10 min)
 
-`filings.recent` holds only the most recent ~1000 filings. For a high-volume filer that may span
-less than 12 months, and a summary built from `recent` alone then under-reports without raising
-an error.
+Phase 0 showed that `filings.recent` holds at least one year of filings or 1000 filings, whichever
+is more. JPMorgan's has 26,143 rows covering exactly 12 months. Both endpoints read `recent` only,
+and nothing fetches the `filings.files` chunks.
 
-- [ ] `getFilingsSince(cik, sinceDate)`:
-      1. Normalize `filings.recent`
-      2. If its oldest `filingDate` still falls inside the window, the window is truncated
-      3. Fetch only the `filings.files` chunks whose `filingFrom`/`filingTo` overlap the window
-      4. Concatenate, normalize, sort descending, cut at `sinceDate`
+- [ ] `truncated = oldest recent filingDate > sinceDate`. That flag is the only guard in case a
+      filer ever breaks the one-year rule. If it's set, the counts are an under-count.
 - [ ] Expose `truncated: boolean` on the summary response so a partial result is visible rather than
-      silently wrong. If the chunk walk is cut for time, still detect and report the truncation.
-- [ ] Test against the JPMorgan fixture
+      silently wrong
+- [ ] `sinceDate` is a parameter of the pure summary function, not read from the clock, so tests
+      pin it to the fixture date (2026-09-14)
 
 ---
 
@@ -169,7 +166,7 @@ same declaration, including coercing numeric query strings.
 - [ ] Fetch concurrently with `Promise.allSettled` and isolate failures:
       `{ results: [...], errors: [{ ticker, reason }] }`. One unresolvable ticker shouldn't fail the
       whole response.
-- [ ] `latest10K` searches all available history, not just the 12-month window; `null` when there is none
+- [ ] `latest10K` is the newest exact `10-K` in `recent`, not limited to the 12-month window; `null` when there is none
 
 ### Plumbing
 
@@ -213,7 +210,7 @@ Pure functions against saved fixtures. No network access in tests. `bun test`.
 - [ ] `latest10K` — Spotify fixture returns `null`
 - [ ] `latest10K` — ignores `10-K/A`
 - [ ] `countsByForm` — correct for the Apple fixture
-- [ ] Window walk — JPMorgan fixture reads from chunks and sets `truncated` correctly
+- [ ] `truncated` — false for the JPMorgan fixture at 2026-09-14; true when `sinceDate` is older than its oldest row
 - [ ] `filter` + `sort` + `paginate` compose correctly on page 2 of a filtered set
 
 ---
@@ -249,27 +246,77 @@ Pure functions against saved fixtures. No network access in tests. `bun test`.
 | Pagination style | `limit` / `offset` with `total` | Cursors add complexity without benefit over a bounded, already-materialized list |
 | "Last 12 months" from when? | `filingDate >= today − 12 months`, UTC, inclusive | EDGAR dates are `YYYY-MM-DD`, so lexicographic comparison is correct and needs no date library |
 | Company with no 10-K | `latest10K: null` | Foreign private issuers file 20-F instead; Spotify is one of the suggested test companies |
-| `latest10K` time bound | All available history | The requirement is the date of the latest 10-K, with no time bound |
+| `latest10K` time bound | Everything in `filings.recent` | `recent` covers at least a year, and an active 10-K filer files one a year, so the latest 10-K is in `recent` unless the company stopped filing 10-Ks more than a year and 1000 filings ago |
 | One ticker fails in a multi-ticker summary | Partial results plus an `errors[]` array | A summary over several companies should degrade per company rather than fail entirely |
 | Unknown ticker | 404 with a message | An empty list is indistinguishable from a company that has filed nothing |
 | Cache backing | SQLite via `bun:sqlite` | Small, dependency-free, and survives restarts |
 | Full history backfill | No — 12-month window fetched on demand | An ingestion pipeline is out of scope for the time budget |
+| Read `filings.files` chunks? | No — `recent` only, with a `truncated` flag | Phase 0 showed `recent` always covers 12 months (JPMorgan: 26,143 rows); the chunk walk would add ~60 min and a second fetch path for no observed benefit |
 
 ## Out of scope
 
 Auth, Docker, CI, end-to-end tests, XBRL financial facts, full-text search, component libraries,
 and logging frameworks. Each adds setup and configuration without serving the requirements. Spend
-the time on Phase 2e and test coverage instead.
+the time on test coverage instead.
 
 ---
 
 ## Recon notes
 
-Fill in during Phase 0.
+Observed 2026-09-14 against live EDGAR.
 
-- `filings.recent` array keys observed:
-- Does `recent` cover 12 months for JPMorgan?
-- Shape of a `filings.files` chunk (top-level columnar, or nested):
-- Do `filings.files` entries carry `filingFrom` / `filingTo`?
-- Spotify's form types:
-- Other findings:
+- **`filings.recent` array keys observed:** `accessionNumber`, `filingDate`, `reportDate`,
+  `acceptanceDateTime`, `act`, `form`, `fileNumber`, `filmNumber`, `items`, `core_type`, `size`,
+  `isXBRL`, `isInlineXBRL`, `isXBRLNumeric`, `primaryDocument`, `primaryDocDescription`. All arrays
+  had equal length in all three companies. `size`, `isXBRL` and `isInlineXBRL` are numbers (the
+  flags are `0`/`1`); `isXBRLNumeric` is a number or `null`; everything else is a string. Dates are
+  `YYYY-MM-DD`; `acceptanceDateTime` is ISO 8601 UTC (`2026-09-10T22:30:31.000Z`). Empty strings
+  appear in `reportDate`, `act`, `fileNumber`, `filmNumber`, `items` and `primaryDocDescription`.
+  `primaryDocument` was never empty for these three filers. Rows are sorted by `filingDate`
+  descending.
+- **Does `recent` cover 12 months for JPMorgan?** Yes. `recent` is not capped at ~1000 rows.
+  JPMorgan's has **26,143** rows spanning 2025-09-12 to 2026-09-14, exactly one year. Apple's has
+  1000 rows spanning 2015-07-24 to 2026-09-10. This matches "at least one year of filings or 1000
+  filings, whichever is more". The JPMorgan response is 4.6 MB uncompressed (475 KB gzipped); 87%
+  of its rows are `424B2`.
+- **Shape of a `filings.files` chunk:** top-level columnar. The chunk is the same 16 arrays with no
+  `filings` or `recent` wrapper and no company metadata. `filings.files` chunks do not overlap
+  `recent` (0 shared accession numbers for JPMorgan chunk 001).
+- **Do `filings.files` entries carry `filingFrom` / `filingTo`?** Yes: `{ name, filingCount,
+  filingFrom, filingTo }`. The bounds aren't exact: JPMorgan chunk 001 says `filingTo: 2025-09-10`
+  but contains 51 filings dated 2025-09-11. Apple has one chunk (1994-01-26 to 2015-07-22).
+  JPMorgan has 70 chunks of ~2000 filings each. Spotify has none (`files: []`).
+- **Spotify's form types:** `20-F` (8, latest 2026-02-10), `6-K` (95), plus `144`, `4`, `3`, `S-8`,
+  `SC 13G`, `SC 13G/A`, `SCHEDULE 13G`, `SCHEDULE 13G/A`, `F-1`, `F-1/A`, `DRS`, `424B3/4` and a few
+  others. There's no `10-K`. `entityType` is `"other"` (Apple and JPMorgan: `"operating"`).
+- **Other findings:**
+  - `company_tickers.json` is 798 KB, 10,426 entries, an object keyed `"0"`, `"1"`, … with
+    `{ cik_str, ticker, title }`. `cik_str` is a **number**, despite its name. Submissions `cik` is a
+    zero-padded string.
+  - One CIK can have many tickers: JPMorgan has 9 (`JPM`, `JPM-PC`, `VYLD`, …). Share classes use a
+    dash (`BRK-B`), so a user typing `BRK.B` won't match. Ticker values are unique across the file.
+  - Accession number prefixes belong to the filing agent, not the company (Apple Form 4:
+    `0001140361-26-036226`). The Archives path still uses the company CIK and returns 200.
+  - URL checks: unpadded CIK on Archives → 200 (primary doc and `-index.htm`); padded CIK on
+    Archives → 301; unpadded CIK on `data.sec.gov/submissions` → 404. No `User-Agent` → 403.
+  - Form 4 `primaryDocument` is an XSL-rendered path (`xslF345X06/form4.xml`); the resulting URL
+    returns 200.
+  - After-hours acceptances get the next day's `filingDate` (`2025-09-11T21:59Z` → `2025-09-12`).
+    Windowing should use `filingDate`.
+  - Form names drift over time: `SC 13G` and `SCHEDULE 13G` both appear for the same filer, so
+    per-form counts split across the two names.
+  - Apple's 1000-row `recent` includes 10-Ks back to 2015, so `latest10K` resolves from `recent`
+    for all three companies.
+
+**Fixtures** (`server/test/fixtures/`), trimmed from the responses above:
+- `company_tickers.json`: 8 entries (AAPL, JPM, JPM-PC, VYLD, SPOT, BRK-A, BRK-B, NVDA), original
+  object shape and keys.
+- `aapl-submissions.json`: first 300 `recent` rows (2023-02-07 to 2026-09-10).
+- `jpm-submissions.json`: 542 `recent` rows. That's every row not `424B2`/`FWP`/`424B3`, plus the
+  newest and oldest 50 of all rows, so both window ends and the 10-K survive. Form counts don't
+  match the live data. `filings.files` is complete (70 entries).
+- `jpm-chunk-001.json` was saved during recon and deleted when the chunk walk was dropped.
+- `spot-submissions.json`: untrimmed (372 rows).
+
+All fixtures are dated relative to 2026-09-14, so window tests must inject "today" rather than
+read the clock.
