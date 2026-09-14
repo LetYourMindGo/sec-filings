@@ -282,7 +282,7 @@ Pure functions against saved fixtures. No network access in tests. `bun test`.
       `NOTES.md` plus the unbounded in-memory map from Phase 3), and next steps
       (shared cache for multi-instance deploys, full-history backfill, XBRL company facts,
       bulk `submissions.zip` ingestion)
-- [ ] Confirm `prompts/LOG.md` is complete
+- [x] Confirm `prompts/LOG.md` is complete: one entry per prompt, 16 as of the push
 - [ ] Push to GitHub and check the README renders correctly
 
 ---
