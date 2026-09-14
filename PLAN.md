@@ -211,21 +211,25 @@ same declaration, including coercing numeric query strings.
 
 No component library. Plain elements keep the dependency count and the styling surface small.
 
-- [ ] TanStack Query provider; Eden typed client in `api.ts`, falling back to `fetch` if the type
-      inference proves awkward
-- [ ] **URL search params hold the view state**: `?ticker=AAPL&form=10-K&sort=-filingDate&page=2`.
+- [x] TanStack Query provider; plain `fetch` in `api.ts` typed with `FilingsResponse` and
+      `SummaryResponse` from `shared/types.ts`. Eden was dropped to keep cross-workspace type
+      inference off the clock
+- [x] **URL search params hold the view state**: `?view=filings|summary&ticker=AAPL&form=10-K&includeAmendments=true&sort=-filingDate&page=2`,
+      and `&tickers=AAPL,SPOT,JPM` for the summary. A small `useSearchParams` in `App.tsx` pushes
+      history entries, so back and forward work; no router library.
       Less code than local state, and filtering, sorting and pagination stay server-side, which is
       where the endpoints already implement them.
-- [ ] **Filings view**: company selector (presets + free-text ticker), form-type filter, sortable
+- [x] **Filings view**: company selector (presets + free-text ticker), form-type filter, sortable
       filing date, pagination, each row linking to the document on sec.gov
       (`target="_blank" rel="noreferrer"`)
-- [ ] **Summary view**: company × form-type counts, plus a latest-10-K column rendering `null` as an
-      explicit "—". A small bar chart if time allows; the table is the requirement.
-- [ ] Loading, error and empty states on both views. An unknown ticker shows the API's message.
-- [ ] Show a footnote when `truncated` is true
-- [ ] Form-type filter offers quick picks (10-K, 10-Q, 8-K) next to free text. 87% of JPMorgan's
+- [x] **Summary view**: company × form-type counts, plus a latest-10-K column rendering `null` as an
+      explicit "—". Form breakdown per company, sorted by count, top 8 with "+N more"; a form-type matrix
+      is unreadable with JPMorgan in the set. Shows the `since` date and renders `errors[]`. No chart
+- [x] Loading, error and empty states on both views. An unknown ticker shows the API's message.
+- [x] Show a footnote when `truncated` is true
+- [x] Form-type filter offers quick picks (10-K, 10-Q, 8-K) next to free text. 87% of JPMorgan's
       filings are `424B2`, so its unfiltered list is pages of prospectuses
-- [ ] Summary view: explain "—" in the latest-10-K column. Foreign private issuers such as Spotify
+- [x] Summary view: explain "—" in the latest-10-K column. Foreign private issuers such as Spotify
       file their annual report as `20-F`, so "no 10-K" doesn't mean "no annual report"
 
 ---

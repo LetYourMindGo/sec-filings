@@ -25,3 +25,19 @@ export interface CompanySummary extends Company {
   latest10K: string | null
   truncated: boolean
 }
+
+// GET /companies/:ticker/filings
+export interface FilingsResponse {
+  company: Company
+  items: Filing[]
+  total: number
+  limit: number
+  offset: number
+}
+
+// GET /filings/summary
+export interface SummaryResponse {
+  since: string
+  results: CompanySummary[]
+  errors: { ticker: string; reason: string }[]
+}

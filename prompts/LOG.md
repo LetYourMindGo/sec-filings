@@ -73,3 +73,54 @@ Do 1, 2 and 8 now with a test each, then commit. Don't start Phase 3 yet.
 Review the fetch and cache path in edgar/client.ts and cache.ts for what
    gets written to the cache versus what gets validated. Consider what happens
    if EDGAR returns a 200 with a body that isn't JSON.
+
+## 2026-09-14 22:04 UTC
+
+Phase 4 — the frontend. Backend is done; don't change server/ unless something
+is actually broken.
+
+Setup
+- Add the two response envelope types to shared/types.ts (FilingsResponse,
+  SummaryResponse) and use them in web/src/api.ts. Plain fetch, not Eden — I
+  don't want cross-workspace type inference on the clock.
+- API base http://localhost:3000 as one constant in api.ts. CORS is already
+  configured for :5173.
+- TanStack Query provider in main.tsx. No component library, no CSS framework;
+  minimal hand-written CSS is fine.
+
+State
+- URL search params are the state: ?view=filings|summary&ticker=AAPL&form=10-K
+  &includeAmendments=true&sort=-filingDate&page=2 and &tickers=AAPL,SPOT,JPM
+  for the summary. Read and write them with useSearchParams-style logic; no
+  router library needed if it's simpler without one.
+- All filtering, sorting and paging go to the server as query params. Nothing
+  is filtered or sorted client-side.
+
+Filings view
+- Company switcher: quick buttons for AAPL, SPOT, JPM plus a free-text ticker
+  input. BRK.B should work.
+- Form filter: quick picks for 10-K, 10-Q, 8-K plus free text, and a checkbox
+  for includeAmendments. 87% of JPMorgan's filings are 424B2, so the unfiltered
+  JPM list is pages of prospectuses — make the filter obvious.
+- Table: form, filing date, report date, description, size. Filing Date header
+  toggles sort. Each row links to documentUrl with target="_blank"
+  rel="noreferrer".
+- Pagination: prev/next plus "showing X–Y of N".
+
+Summary view
+- Ticker set input, defaulting to AAPL,SPOT,JPM.
+- One row per company: name, total filings in the last 12 months, latest 10-K.
+  Render a null latest 10-K as "—" with a short note that foreign private
+  issuers such as Spotify file 20-F instead.
+- Per-company form breakdown sorted by count descending, top 8 with "+N more".
+  A 20-column matrix is unreadable with JPMorgan in the set.
+- Show the `since` date the API returns, so the window is visible.
+- Footnote when truncated is true.
+- Render the errors[] array — an unknown ticker in the set must be visible, not
+  silently dropped.
+
+Every view needs loading, error and empty states. On an API error show the
+message from the error envelope, not a blank screen.
+
+No chart. Verify both views in the browser yourself, then commit. Stop there
+and tell me what's left — don't start Phase 5 or 6.
