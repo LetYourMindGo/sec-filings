@@ -5,11 +5,6 @@ import { COMPANY_TICKERS_URL, submissionsUrl } from './urls'
 // The only module that talks to EDGAR. Everything outbound goes through fetchJson, which applies
 // the User-Agent, the rate limit, the cache, single-flight and one retry.
 
-const USER_AGENT = process.env.EDGAR_USER_AGENT
-if (!USER_AGENT) {
-  throw new Error('EDGAR_USER_AGENT is not set. SEC rejects requests without it; see .env.example.')
-}
-
 const HOUR = 60 * 60 * 1000
 // 125 ms between request starts caps traffic at 8 req/s in any one-second window.
 const MIN_REQUEST_GAP_MS = 125
@@ -62,5 +57,6 @@ async function rateLimitedFetch(url: string): Promise<Response> {
   const slot = Math.max(now, nextSlot)
   nextSlot = slot + MIN_REQUEST_GAP_MS
   if (slot > now) await Bun.sleep(slot - now)
-  return fetch(url, { headers: { 'User-Agent': USER_AGENT! } })
+  // index.ts refuses to start without it.
+  return fetch(url, { headers: { 'User-Agent': process.env.EDGAR_USER_AGENT ?? '' } })
 }
