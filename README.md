@@ -2,8 +2,8 @@
 
 An API and a small React UI for browsing a company's SEC filings by ticker and comparing filing
 activity across companies over the last 12 months. Every request reads from SEC EDGAR's submissions
-API at request time. There is no database; responses are cached in a local SQLite file for up to an
-hour so repeated requests don't hit EDGAR again.
+API at request time. There is no database. EDGAR responses are cached in a local SQLite file, for an
+hour for filings and a day for the ticker list, so repeated requests don't hit EDGAR again.
 
 ## Requirements
 
@@ -19,7 +19,8 @@ cp .env.example .env
 Edit `.env` and set `EDGAR_USER_AGENT` to your own name and email, e.g.
 `EDGAR_USER_AGENT="Jane Doe jane@example.com"`. SEC requires every client to identify itself and
 returns 403 to requests without this header. The repository can't ship a working value because it
-has to identify you. The server refuses to start while it's unset.
+has to identify you. Without it the API exits at startup with a message in the terminal, while the
+UI still starts and reports that the API isn't responding.
 
 ## Run
 
