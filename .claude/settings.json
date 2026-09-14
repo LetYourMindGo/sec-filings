@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mkdir -p prompts && { printf '\\n## %s\\n\\n' \"$(date -u '+%Y-%m-%d %H:%M UTC')\"; jq -r '.prompt // empty'; } >> prompts/LOG.md"
+          }
+        ]
+      }
+    ]
+  }
+}
